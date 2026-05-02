@@ -124,4 +124,3 @@ for i, t in enumerate(tickers):
 print("\nAlpha (VaR):", alpha)
 print("Objective (CVaR):", obj)
 
-

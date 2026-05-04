@@ -7,6 +7,8 @@ import os
 
 from amplpy import AMPL
 from tqdm import tqdm
+from model import standardModel
+import json
 
 from tools import run_strategy, total_return
 
@@ -29,6 +31,7 @@ TEST_END    = "2026-01-01"
 BETA = 0.95
 MIN_RETURN = 0.0
 MAX_ALLOCATION = 1.0
+INFLATION_RATE = 0.03
 
 SOLVER = "highs"
 
@@ -39,15 +42,14 @@ TOP_N = 3
 
 SHOW_PLOT = False
 
-RESULT_DIR = "exp_results/exp1"
-RESULT_CSV = os.path.join(RESULT_DIR, "exp1TrainingPerformance.csv")
-TOP_WEIGHTS_CSV = os.path.join(RESULT_DIR, "exp1TopPortfolios.csv")
-PLOT_PATH = os.path.join(RESULT_DIR, "exp1Plot.png")
+RESULT_DIR = "exp_results/exp2"
+RESULT_CSV = os.path.join(RESULT_DIR, "exp2TrainingPerformance.csv")
+TOP_WEIGHTS_CSV = os.path.join(RESULT_DIR, "exp2TopPortfolios.csv")
+PLOT_PATH = os.path.join(RESULT_DIR, "exp2Plot.png")
 
-TEST_CSV = os.path.join(RESULT_DIR, "exp1TestPerformance.csv")
+TEST_CSV = os.path.join(RESULT_DIR, "exp2TestPerformance.csv")
 
 os.makedirs(RESULT_DIR, exist_ok=True)
-
 
 # =========================================================
 # WORKER FUNCTION FOR PARALLEL EVALUATION
@@ -56,8 +58,9 @@ os.makedirs(RESULT_DIR, exist_ok=True)
 def evaluate_params(args):
     window, freq, train_returns = args
     try:
-        strat_returns, _ = run_strategy(train_returns, window, freq, BETA, MIN_RETURN, MAX_ALLOCATION,SOLVER)
+        strat_returns, _ = run_strategy(train_returns, window, freq, BETA, MIN_RETURN, MAX_ALLOCATION, solver=SOLVER)
         growth = total_return(strat_returns)
+
         return {
             "window": window,
             "freq": freq,
@@ -72,10 +75,6 @@ def evaluate_params(args):
 # =========================================================
 
 def main():
-    # initialize file
-    with open(RESULT_CSV, "w") as f:
-        header = "window,freq,growth," + ",".join(TICKERS) + "\n"
-        f.write(header)
     # ---------------- DATA LOAD ----------------
     prices = yf.download(
         TICKERS,
@@ -100,6 +99,19 @@ def main():
     test_returns  = returns.loc[TEST_START:TEST_END]
 
     spy_test = spy_returns.loc[TEST_START:TEST_END]
+
+    # create a constant series matching the DataFrame shape
+    buying_power_train = -np.log(1 + INFLATION_RATE) / np.log(365)
+    buying_power_test  = -np.log(1 + INFLATION_RATE) / np.log(365)
+
+    train_returns.loc["BUYING_POWER"] = buying_power_train
+    test_returns.loc["BUYING_POWER"]  = buying_power_test
+    TICKERS.append("BUYING_POWER")
+
+    # initialize file
+    with open(RESULT_CSV, "w") as f:
+        header = "window,freq,growth," + ",".join(TICKERS) + "\n"
+        f.write(header)
 
     # ---------------- PARALLEL SEARCH ----------------
 

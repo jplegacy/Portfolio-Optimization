@@ -2,7 +2,7 @@ import numpy as np
 from amplpy import AMPL
 
 
-ampl_model = """
+standardModel = """
 param T;
 param n;
 param beta;
@@ -30,15 +30,18 @@ subject to ReturnTarget:
 """
 
 
-def solve_cvar_ampl(R, mean,
+def solveStandardModel(R, mean,
                     beta,
                     minReturn,
                     maxAllocation,
                     solver="highs"):
 
+
     T, n = R.shape
     ampl = AMPL()
-    ampl.eval(ampl_model)
+
+
+    ampl.eval(standardModel)
 
     ampl.param["T"] = T
     ampl.param["n"] = n
@@ -61,6 +64,7 @@ def solve_cvar_ampl(R, mean,
     alpha = ampl.var["alpha"].value()
     obj = ampl.getObjective("CVaR").value()
 
+    
     return x, alpha, obj
 
 if __name__ == "__main__":
@@ -74,7 +78,7 @@ if __name__ == "__main__":
     R = returns.values
     mean = R.mean(axis=0)
 
-    x, alpha, obj = solve_cvar_ampl(
+    x, alpha, obj = solveStandardModel(
         R, mean,
         beta=0.95,
         minReturn=0.0,

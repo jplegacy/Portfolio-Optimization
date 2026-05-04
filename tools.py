@@ -1,0 +1,50 @@
+
+# =========================================================
+# BACKTEST
+# =========================================================
+
+import numpy as np
+import pandas as pd
+
+from model import solveStandardModel
+
+def run_strategy(returns, window, freq, BETA, MIN_RETURN, MAX_ALLOCATION, solver="gurobi"):
+    n = returns.shape[1]
+    weights = np.zeros(n)
+
+    portfolio_returns = []
+    weights_history = []
+
+    for t in range(window, len(returns)):
+        if freq == "daily" or (freq == "window" and (t - window) % window == 0):
+            R_window = returns.iloc[t-window:t].values
+            mean = R_window.mean(axis=0)
+
+            weights, _, _ = solveStandardModel(
+                R_window,
+                mean,
+                beta=BETA,
+                minReturn=MIN_RETURN,
+                maxAllocation=MAX_ALLOCATION,
+                solver=solver
+            )
+
+        r = returns.iloc[t].values @ weights
+        portfolio_returns.append(r)
+        weights_history.append(weights.copy())
+
+    return (
+        pd.Series(portfolio_returns, index=returns.index[window:]),
+        np.array(weights_history) 
+    )
+
+
+
+# =========================================================
+# METRICS
+# =========================================================
+
+def total_return(r):
+    if isinstance(r, pd.DataFrame):
+        r = r.iloc[:, 0]
+    return float((1 + r).prod() - 1)

@@ -2,7 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # === CHANGE THIS ===
-file_path = "exp_results/exp1TestPerformance.csv"
+file_path = "exp_results/exp1/exp1TestPerformance.csv"
 
 # Load data
 df = pd.read_csv(file_path)
@@ -11,7 +11,7 @@ asset_map = {
     "GLD": "Gold",
     "BND": "Bonds",
     "IGV": "Tech",
-    "VDC": "Consumer(Necc)",
+    "VDC": "Consumer(Ness.)",
     "SOCL": "Media",
     "IHF": "Healthcare",
     "IYZ": "Telecom",
@@ -73,6 +73,6 @@ fig.suptitle("Asset Allocations by (Window, Frequency)")
 plt.tight_layout(rect=[0, 0.08, 1, 1])
 
 
-plt.savefig(f"exp_results/exp1AssetPlot.png")
+plt.savefig(f"exp_results/exp1/exp1AssetPlot.png")
 
 plt.show()

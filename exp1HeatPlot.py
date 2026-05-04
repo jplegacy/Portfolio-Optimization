@@ -3,7 +3,9 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 
 # ---- Load CSV ----
-file_path = "exp_results/exp1TrainingPerformance.csv"
+file_path = "exp_results/exp1/exp1TrainingPerformance.csv"
+output_file = "exp_results/exp1/exp1GrowthHeatmap.png"
+
 df = pd.read_csv(file_path)
 
 # ---- Clean / standardize columns ----
@@ -64,7 +66,6 @@ plt.ylabel("Type (daily / window)")
 plt.tight_layout()
 
 # ---- Save ----
-output_file = "exp_results/exp1GrowthHeatmap.png"
 plt.savefig(output_file, dpi=300)
 
 plt.show()

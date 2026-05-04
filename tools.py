@@ -70,8 +70,6 @@ def run_with_money_constraint(returns, window, freq, MONEY_CONSTRAINT, BETA, MIN
     )
     
 
-
-
 # =========================================================
 # METRICS
 # =========================================================

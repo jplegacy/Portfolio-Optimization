@@ -165,10 +165,10 @@ def main():
         else:
             strat_returns, weights_history = test_cache[key]
 
-        cum_returns = strat_returns.cumsum()
+        cum_returns = (1 + strat_returns).cumprod() - 1
         plt.plot(cum_returns, label=f"window={window}, freq={freq}")
 
-    spy_cum = spy_test.cumsum()
+    spy_cum = (1 + spy_test).cumprod() - 1
     plt.plot(spy_cum, linestyle="--", linewidth=2, label="SPY", color="red")
 
     plt.title(f"Top {len(topN)} CVaR Strategies vs S&P 500")

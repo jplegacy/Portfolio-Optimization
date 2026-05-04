@@ -15,7 +15,7 @@ import json
 # CONFIG
 # =========================================================
 
-TICKERS = ["GLD", "BND", "IGV", "VSLU", "VDC","SOCL","IHF","IYZ","XOM"]
+TICKERS = ["GLD", "BND", "IGV", "VDC","SOCL","IHF","IYZ","XOM"]
 BENCHMARK = "SPY"
 
 START_DATE = "2023-01-01"
@@ -78,7 +78,7 @@ def run_strategy(returns, window, freq):
 
     return (
         pd.Series(portfolio_returns, index=returns.index[window:]),
-        np.array(weights_history)   # shape: (T, N)
+        np.array(weights_history) 
     )
 
 # =========================================================
@@ -91,25 +91,24 @@ def total_return(r):
     return float((1 + r).prod() - 1)
 
 # =========================================================
-# WORKER FUNCTION (MUST BE TOP LEVEL)
+# WORKER FUNCTION FOR PARALLEL EVALUATION
 # =========================================================
 
 def evaluate_params(args):
     window, freq, train_returns = args
     try:
-        strat_returns, final_weights = run_strategy(train_returns, window, freq)
+        strat_returns, _ = run_strategy(train_returns, window, freq)
         growth = total_return(strat_returns)
 
         return {
             "window": window,
             "freq": freq,
-            "growth": growth,
-            "weights": final_weights.tolist()   # JSON serializable
+            "growth": growth
         }
     except Exception as e:
         print(f"Failed: window={window}, freq={freq}, error={e}")
         return None
-
+    
 # =========================================================
 # MAIN
 # =========================================================
@@ -145,52 +144,30 @@ def main():
     spy_test = spy_returns.loc[TEST_START:TEST_END]
 
     # ---------------- PARALLEL SEARCH ----------------
+
     param_list = [(w, f, train_returns) for w in WINDOWS for f in FREQS]
 
     results = []
 
-    # keep small (AMPL + CPLEX not friendly to many processes)
-    with mp.Pool(mp.cpu_count()) as pool, open(RESULT_CSV, "a") as f:
+    with mp.Pool(mp.cpu_count()) as pool, open(RESULT_CSV, "w") as f:
+        f.write("window,freq,growth\n")
+
         for res in tqdm(
             pool.imap_unordered(evaluate_params, param_list),
             total=len(param_list),
             desc="Hyperparameter Search"
         ):
-            if res:
-                results.append(res)
+            if res is None:
+                continue
 
-                weights_array = np.array(res["weights"][-1])  # last weight vector
+            results.append(res)
 
-                f.write(
-                    f"{res['window']},"
-                    f"{res['freq']},"
-                    f"{res['growth']},"
-                    + ",".join(map(str, weights_array))
-                    + "\n"
-                )
-                f.flush()
+            row = [res["window"], res["freq"], res["growth"]]
+            f.write(",".join(map(str, row)) + "\n")
+            f.flush()
                 
-    clean_results = []
+    results_df = pd.DataFrame(results)
 
-    for r in results:
-        if r is None:
-            continue
-
-        row = {
-            "window": r["window"],
-            "freq": r["freq"],
-            "growth": r["growth"],
-        }
-
-        final_w = np.array(r["weights"][-1])
-
-        for t, w in zip(TICKERS, final_w):
-            row[t] = w
-
-        clean_results.append(row)
-
-    results_df = pd.DataFrame(clean_results)
-    
     # ---------------- TOP STRATEGIES ----------------
     topN = results_df.sort_values("growth", ascending=False).head(TOP_N)
     print(f"\nTop {TOP_N} strategies (by growth):")
@@ -213,7 +190,7 @@ def main():
     spy_cum = spy_test.cumsum()
     plt.plot(spy_cum, linestyle="--", linewidth=2, label="SPY", color="red")
 
-    plt.title(f"Top {len(topN)} CVaR Strategies vs S&P 500 (2025)")
+    plt.title(f"Top {len(topN)} CVaR Strategies vs S&P 500")
     plt.xlabel("Date")
     plt.ylabel("Cumulative Return")
     plt.legend()
@@ -226,7 +203,7 @@ def main():
         plt.close()
 
     # ---------------- FINAL RESULTS ----------------
-    print("\nFinal 2025 Performance:")
+    print("\nFinal Performance:")
 
     spy_total = total_return(spy_test)
     print(f"SPY: {spy_total:.2%}")
@@ -241,8 +218,8 @@ def main():
         print(f"Strategy (window={window}, freq={freq}): "
               f"{strat_total:.2%} | excess: {(strat_total - spy_total):.2%}")
 
+    # ---------------- TEST (ALL AMPL SOLUTIONS) ----------------
     rows = []
-
     solution_counter = {}
 
     for _, row in topN.iterrows():
@@ -253,29 +230,28 @@ def main():
         solution_counter.setdefault(key, 0)
 
         strat_returns, weights_history = run_strategy(test_returns, window, freq)
+
         strat_total = total_return(strat_returns)
 
-        solution_counter[key] += 1
-        count = solution_counter[key]
+        for w in weights_history:
+            solution_counter[key] += 1
+            count = solution_counter[key]
 
-        final_weights = weights_history[-1]
+            row_dict = {
+                "window": window,
+                "freq": freq,
+                "count": count,
+                "growth": strat_total
+            }
 
-        row_dict = {
-            "window": window,
-            "freq": freq,
-            "count": count,
-            "growth": strat_total
-        }
+            for ticker, weight in zip(TICKERS, w):
+                row_dict[ticker] = weight
 
-        # 👇 each asset becomes its own column
-        for ticker, weight in zip(TICKERS, final_weights):
-            row_dict[ticker] = weight
-
-        rows.append(row_dict)
+            rows.append(row_dict)
 
     df = pd.DataFrame(rows)
 
-    # optional: enforce column order
+    # enforce column order
     df = df[["window", "freq", "count", "growth"] + TICKERS]
 
     df.to_csv(TEST_CSV, index=False)

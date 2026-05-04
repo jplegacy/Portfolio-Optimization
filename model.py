@@ -29,19 +29,16 @@ subject to ReturnTarget:
     sum {i in 1..n} mean[i] * x[i] >= minReturn;
 """
 
-
-def solveStandardModel(R, mean,
+def solveModel(model,R, mean,
                     beta,
                     minReturn,
                     maxAllocation,
                     solver="highs"):
 
-
     T, n = R.shape
     ampl = AMPL()
 
-
-    ampl.eval(standardModel)
+    ampl.eval(model)
 
     ampl.param["T"] = T
     ampl.param["n"] = n
@@ -66,6 +63,30 @@ def solveStandardModel(R, mean,
 
     
     return x, alpha, obj
+
+def solveStandardModel(R, mean,
+                    beta,
+                    minReturn,
+                    maxAllocation,
+                    solver="highs"):
+    
+    return solveModel(standardModel, R, mean, beta, minReturn, maxAllocation, solver)
+
+
+def solveWithMoneyConstraint(R, mean,
+                    beta,
+                    minReturn,
+                    maxAllocation,
+                    moneyConstraint,
+                    solver="highs"):
+
+    extraMoneyConstraint = f"""
+    subject to MinCashUsage:
+    x[n] <= {moneyConstraint};
+    """
+    return solveModel(standardModel + extraMoneyConstraint, R, mean, beta, minReturn, maxAllocation, solver)
+
+
 
 if __name__ == "__main__":
     import yfinance as yf

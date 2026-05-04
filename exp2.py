@@ -10,7 +10,7 @@ from tqdm import tqdm
 from model import standardModel
 import json
 
-from tools import run_strategy, total_return
+from tools import run_with_money_constraint, total_return
 
 
 # =========================================================
@@ -32,6 +32,7 @@ BETA = 0.95
 MIN_RETURN = 0.0
 MAX_ALLOCATION = 1.0
 INFLATION_RATE = 0.03
+MONEY_CONSTRAINT = 0.25
 
 SOLVER = "highs"
 
@@ -58,7 +59,7 @@ os.makedirs(RESULT_DIR, exist_ok=True)
 def evaluate_params(args):
     window, freq, train_returns = args
     try:
-        strat_returns, _ = run_strategy(train_returns, window, freq, BETA, MIN_RETURN, MAX_ALLOCATION, solver=SOLVER)
+        strat_returns, _ = run_with_money_constraint(train_returns, window, freq, MONEY_CONSTRAINT, BETA, MIN_RETURN, MAX_ALLOCATION, solver=SOLVER)
         growth = total_return(strat_returns)
 
         return {
@@ -101,11 +102,11 @@ def main():
     spy_test = spy_returns.loc[TEST_START:TEST_END]
 
     # create a constant series matching the DataFrame shape
-    buying_power_train = -np.log(1 + INFLATION_RATE) / np.log(365)
-    buying_power_test  = -np.log(1 + INFLATION_RATE) / np.log(365)
+    buying_power_train =(1-INFLATION_RATE)**(1/365)-1
+    buying_power_test =(1-INFLATION_RATE)**(1/365)-1
 
-    train_returns.loc["BUYING_POWER"] = buying_power_train
-    test_returns.loc["BUYING_POWER"]  = buying_power_test
+    train_returns["BUYING_POWER"] = buying_power_train
+    test_returns["BUYING_POWER"]  = buying_power_test
     TICKERS.append("BUYING_POWER")
 
     # initialize file
@@ -148,13 +149,23 @@ def main():
     # ---------------- TEST ----------------
     plt.figure(figsize=(12, 6))
 
+    test_cache = {}
+
     for _, row in topN.iterrows():
         window = int(row["window"])
         freq = row["freq"]
 
-        strat_returns, _ = run_strategy(test_returns, window, freq, BETA, MIN_RETURN, MAX_ALLOCATION, solver=SOLVER)
-        cum_returns = strat_returns.cumsum()
+        key = (window, freq)
 
+        if key not in test_cache:
+            strat_returns, weights_history = run_with_money_constraint(
+                test_returns, window, freq, MONEY_CONSTRAINT, BETA, MIN_RETURN, MAX_ALLOCATION, solver=SOLVER
+            )
+            test_cache[key] = (strat_returns, weights_history)
+        else:
+            strat_returns, weights_history = test_cache[key]
+
+        cum_returns = strat_returns.cumsum()
         plt.plot(cum_returns, label=f"window={window}, freq={freq}")
 
     spy_cum = spy_test.cumsum()
@@ -178,29 +189,21 @@ def main():
     spy_total = total_return(spy_test)
     print(f"SPY: {spy_total:.2%}")
 
-    for _, row in topN.iterrows():
-        window = int(row["window"])
-        freq = row["freq"]
-        
-        strat_returns, _ = run_strategy(test_returns, window, freq, BETA, MIN_RETURN, MAX_ALLOCATION, solver=SOLVER)
+    for key, (strat_returns, _) in test_cache.items():
+        window, freq = key
         strat_total = total_return(strat_returns)
 
         print(f"Strategy (window={window}, freq={freq}): "
-              f"{strat_total:.2%} | excess: {(strat_total - spy_total):.2%}")
+            f"{strat_total:.2%} | excess: {(strat_total - spy_total):.2%}")
 
     # ---------------- TEST (ALL AMPL SOLUTIONS) ----------------
     rows = []
     solution_counter = {}
 
-    for _, row in topN.iterrows():
-        window = int(row["window"])
-        freq = row["freq"]
+    for key, (strat_returns, weights_history) in test_cache.items():
+        window, freq = key
 
-        key = (window, freq)
         solution_counter.setdefault(key, 0)
-
-        strat_returns, weights_history = run_strategy(test_returns, window, freq, BETA, MIN_RETURN, MAX_ALLOCATION, solver=SOLVER)
-
         strat_total = total_return(strat_returns)
 
         for w in weights_history:

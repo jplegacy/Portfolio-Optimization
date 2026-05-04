@@ -43,14 +43,14 @@ pairUps = {
 TICKERS = [ticker for etf, holdings in pairUps.items() for ticker in holdings]
 BENCHMARKS = [etf for etf in pairUps.keys()]
 
-START_DATE = "2025-01-01"
+START_DATE = "2023-01-01"
 END_DATE = "2026-04-01"
 
 BETA = 0.95
 MIN_RETURN = 0.0
 MAX_ALLOCATION = 1.0
 INFLATION_RATE = 0.03
-MONEY_CONSTRAINT = 0.25
+MONEY_CONSTRAINT = 1
 
 SOLVER = "highs"
 

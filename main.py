@@ -1,14 +1,18 @@
+import numpy as np
+from amplpy import AMPL
+
+
 ampl_model = """
 param T;
 param n;
 param beta;
 
 param R{1..T, 1..n};
-param mu{1..n};
-param r_min;
-param w_max;
+param mean{1..n};
+param minReturn;
+param maxAllocation;
 
-var x{1..n} >= 0, <= w_max;
+var x{1..n} >= 0, <= maxAllocation;
 var alpha;
 var u{1..T} >= 0;
 
@@ -22,105 +26,65 @@ subject to Budget:
     sum {i in 1..n} x[i] = 1;
 
 subject to ReturnTarget:
-    sum {i in 1..n} mu[i] * x[i] >= r_min;
+    sum {i in 1..n} mean[i] * x[i] >= minReturn;
 """
 
-# import ampl
-import numpy as np
-from amplpy import AMPL
 
-def solve_cvar_ampl(R, mu, beta=0.95, r_min=0.0, w_max=0.2):
-    """
-    Solve single CVaR portfolio optimization using AMPL in Python.
-   
-    Returns:
-        x (np.array): optimal portfolio weights
-        alpha (float)
-        obj (float)
-    """
+def solve_cvar_ampl(R, mean,
+                    beta,
+                    minReturn,
+                    maxAllocation,
+                    solver="highs"):
 
     T, n = R.shape
-
     ampl = AMPL()
-
-    # -------------------------
-    # Load model
-    # -------------------------
     ampl.eval(ampl_model)
 
-    # -------------------------
-    # Set parameters
-    # -------------------------
-    # ampl.set["T"] = range(1, T + 1)
-    # ampl.set["n"] = range(1, n + 1)
     ampl.param["T"] = T
     ampl.param["n"] = n
 
     ampl.param["beta"] = beta
-    ampl.param["r_min"] = r_min
-    ampl.param["w_max"] = w_max
+    ampl.param["minReturn"] = minReturn
+    ampl.param["maxAllocation"] = maxAllocation
 
-    # R matrix
     for t in range(T):
         for i in range(n):
             ampl.param["R"][t + 1, i + 1] = float(R[t, i])
 
-    # mu vector
     for i in range(n):
-        ampl.param["mu"][i + 1] = float(mu[i])
+        ampl.param["mean"][i + 1] = float(mean[i])
 
-    # -------------------------
-    # Solve
-    # -------------------------
-    # ampl.solve()
-    ampl.option["solver"] = "highs"
-    ampl.solve()
+    ampl.option["solver"] = solver
+    ampl.solve(verbose=False)
 
-    # -------------------------
-    # Extract results
-    # -------------------------
     x = np.array([ampl.var["x"][i + 1].value() for i in range(n)])
     alpha = ampl.var["alpha"].value()
     obj = ampl.getObjective("CVaR").value()
 
     return x, alpha, obj
 
+if __name__ == "__main__":
+    import yfinance as yf
 
-#------------------------------------------------------------------------------
-#YFINAance data loading and backtesting code
-#------------------------------------------------------------------------------
+    TICKERS = ["GLD", "BND", "IGV", "VSLU", "VDC","SOCL","IHF","IYZ","XOM"]
 
-import yfinance as yf
+    prices = yf.download(TICKERS, start="2023-01-01", end="2026-01-01", auto_adjust=True)["Close"]
+    returns = prices.pct_change().dropna()
 
-# -------------------------
-# Load data
-# -------------------------
-tickers = ["AAPL", "MSFT", "NVDA", "AMZN", "GOOGL"]
+    R = returns.values
+    mean = R.mean(axis=0)
 
-prices = yf.download(tickers, start="2025-01-01", end="2026-01-01", auto_adjust=True)["Close"]
-returns = prices.pct_change().dropna()
+    x, alpha, obj = solve_cvar_ampl(
+        R, mean,
+        beta=0.95,
+        minReturn=0.0,
+        maxAllocation=1.0
+    )
 
-R = returns.values
-mu = R.mean(axis=0)
+    print("Optimal weights:")
+    for i, t in enumerate(TICKERS):
+        print(f"{t}: {x[i]:.4f}")
 
-# -------------------------
-# Solve CVaR
-# -------------------------
-x, alpha, obj = solve_cvar_ampl(
-    R,
-    mu,
-    beta=0.95,
-    r_min=0.0005,
-    w_max=1.0,
-)
-
-# -------------------------
-# Output
-# -------------------------
-print("Optimal weights:")
-for i, t in enumerate(tickers):
-    print(f"{t}: {x[i]:.4f}")
-
-print("\nAlpha (VaR):", alpha)
-print("Objective (CVaR):", obj)
+    print("\nAlpha (VaR):", alpha)
+    print("Objective (CVaR):", obj)
 

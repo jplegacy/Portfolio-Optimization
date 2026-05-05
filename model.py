@@ -29,6 +29,38 @@ subject to ReturnTarget:
     sum {i in 1..n} mean[i] * x[i] >= minReturn;
 """
 
+hedgingModel = """
+param T;
+param n;
+param beta;
+
+param R{1..T, 1..n};
+param mean{1..n};
+param minReturn;
+param maxAllocation;
+
+var x{1..n};
+var barx{1..n} >= 0;
+
+var alpha;
+var u{1..T} >= 0;
+
+minimize CVaR:
+    alpha + (1 / ((1 - beta) * T)) * sum {t in 1..T} u[t];
+
+subject to TailRisk {t in 1..T}:
+    u[t] >= -sum {i in 1..n} R[t,i] * x[i] - alpha;
+
+subject to upperBound {i in 1..n}:
+    x[i] <= barx[i];
+
+subject to lowerBound {i in 1..n}:
+    -x[i] <= barx[i];
+
+subject to Budget:
+    sum {i in 1..n} barx[i] = 1;
+"""
+
 def solveModel(model,R, mean,
                     beta,
                     minReturn,
@@ -85,6 +117,28 @@ def solveWithMoneyConstraint(R, mean,
     x[n] <= {moneyConstraint};
     """
     return solveModel(standardModel + extraMoneyConstraint, R, mean, beta, minReturn, maxAllocation, solver)
+
+
+def solveHedgingModel(R, mean,
+                    beta,
+                    minReturn,
+                    maxAllocation,
+                    solver="highs"):
+    
+    return solveModel(hedgingModel, R, mean, beta, minReturn, maxAllocation, solver)
+
+def solveHedgingWithMoneyConstraint(R, mean,
+                    beta,
+                    minReturn,
+                    maxAllocation,
+                    moneyConstraint,
+                    solver="highs"):
+
+    extraMoneyConstraint = f"""
+    subject to MinCashUsage:
+    x[n] <= {moneyConstraint};
+    """
+    return solveModel(hedgingModel + extraMoneyConstraint, R, mean, beta, minReturn, maxAllocation, solver)
 
 
 

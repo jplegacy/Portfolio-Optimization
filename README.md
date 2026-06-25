@@ -322,25 +322,6 @@ pip install yfinance pandas matplotlib tqdm scipy
 
 Depending on the implementation of `run_strategy`, additional optimization libraries may be required.
 
----
-
-## Project Structure
-
-```text
-project/
-│
-├── experiment.py
-├── tools.py
-│
-├── exp_results/
-│   └── exp1/
-│       ├── exp1TrainingPerformance.csv
-│       ├── exp1TopPortfolios.csv
-│       ├── exp1TestPerformance.csv
-│       └── exp1Plot.png
-│
-└── README.md
-```
 
 ---
 

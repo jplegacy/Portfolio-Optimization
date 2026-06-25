@@ -35,15 +35,15 @@ pairUps = {
  }
 
 # Comment to 
-BACKING = "GLD"
-for etf, holdings in pairUps.items():
-    holdings.append(BACKING)
+# BACKING = "GLD"
+# for etf, holdings in pairUps.items():
+#     holdings.append(BACKING)
 
 TICKERS = [ticker for etf, holdings in pairUps.items() for ticker in holdings]
 BENCHMARKS = [etf for etf in pairUps.keys()]
 
 
-START_DATE = "2025-01-01"
+START_DATE = "2020m-01-01"
 END_DATE = "2026-01-01"
 
 BETA = 0.95
